@@ -1,4 +1,4 @@
-use tauri::image::Image as TauriImage;
+use tauri::{image::Image as TauriImage, Emitter};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 mod auth;
@@ -38,15 +38,37 @@ fn show_window(window: tauri::Window) {
     let _ = window.set_focus();
 }
 
+fn clear_pin_state(window: &tauri::Window) {
+    if let Err(error) = window.set_always_on_top(false) {
+        eprintln!("Failed to unpin widget: {error}");
+    }
+    if let Err(error) = window.emit("usage-widget-unpinned", ()) {
+        eprintln!("Failed to notify widget that it was unpinned: {error}");
+    }
+}
+
+#[tauri::command]
+fn hide_window(window: tauri::Window) {
+    clear_pin_state(&window);
+    if let Err(error) = window.hide() {
+        eprintln!("Failed to hide usage widget: {error}");
+    }
+}
+
 #[tauri::command]
 fn set_tray_icon(app: tauri::AppHandle) -> Result<(), String> {
     // Use tauri's Image helper to build an Image from PNG/ICO bytes
-    let bytes = include_bytes!("../tray-icon-light.png");
+    #[cfg(target_os = "windows")]
+    let bytes: &[u8] = include_bytes!("../tray-icon-dark.png");
+    #[cfg(not(target_os = "windows"))]
+    let bytes: &[u8] = include_bytes!("../tray-icon-light.png");
     let img = TauriImage::from_bytes(bytes).map_err(|e| format!("failed to create tauri image: {}", e))?;
 
     let tray = app.tray_by_id("main").ok_or("Tray not found")?;
     tray.set_icon(Some(img)).map_err(|e| format!("Failed to set tray icon: {e}"))?;
-    tray.set_icon_as_template(true).map_err(|e| format!("Failed to set icon as template: {e}"))
+    #[cfg(target_os = "macos")]
+    tray.set_icon_as_template(true).map_err(|e| format!("Failed to set icon as template: {e}"))?;
+    Ok(())
 }
 
 /// Start GitHub device code authentication flow
@@ -102,7 +124,8 @@ pub fn run() {
             claude::fetch_claude_usage,
             claude::claude_status,
             show_window,
-            close_app, 
+            hide_window,
+            close_app,
             set_tray_icon,
             start_auth_flow,
             complete_auth_flow,
@@ -111,10 +134,18 @@ pub fn run() {
             disable_autostart
         ])
         .on_window_event(|window, event| {
-            // Intercept window close events: hide instead of close
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    clear_pin_state(window);
+                    let _ = window.hide();
+                }
+                tauri::WindowEvent::Focused(false) | tauri::WindowEvent::Resized(_) => {
+                    if window.is_minimized().unwrap_or(false) {
+                        clear_pin_state(window);
+                    }
+                }
+                _ => {}
             }
         })
         .run(tauri::generate_context!())

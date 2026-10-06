@@ -170,8 +170,15 @@ export const TrayProvider: React.FC<{ tray: TrayIcon | null; children?: React.Re
           item: 'Separator',
         },
         {
+          id: 'hide',
+          text: 'Hide Widget',
+          action: () => {
+            invoke('hide_window');
+          },
+        },
+        {
           id: 'show',
-          text: 'Show App',
+          text: 'Show Widget',
           action: () => {
             invoke('show_window');
           },

@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, type MouseEvent } from 'react';
 import { fetchCopilotUsage, calculatePercentage, formatCopilotPlan, getStoredToken, storeToken } from './services/copilot';
 import { fetchClaudeUsage, getClaudeStatus, primaryWindow, formatResetsAt } from './services/claude';
 import { startAuthFlow, completeAuthFlow, closeAuthServer } from './services/auth';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
+import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
+import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import { USAGE_SOURCE_LABELS, type ClaudeStatus, type ClaudeUsage, type CopilotUsage } from './types';
 import './App.css';
 import { useTray } from './contexts/TrayContext';
@@ -11,6 +14,7 @@ import ProgressBar from './components/ProgressBar';
 
 const REFRESH_OPTIONS = [1, 5, 15, 30];
 const DEFAULT_REFRESH_MINUTES = 5;
+const ALWAYS_ON_TOP_STORAGE_KEY = 'usageAlwaysOnTop';
 
 function App() {
   const { setText, updateMenu, source, setSource } = useTray();
@@ -29,18 +33,6 @@ function App() {
   const [claudeLoading, setClaudeLoading] = useState(false);
   const [claudeError, setClaudeError] = useState<string | null>(null);
 
-  const [showBar, setShowBar] = useState<boolean>(() => {
-    const v = localStorage.getItem('showBar');
-    return v === null ? true : v === '1';
-  });
-  const [showPercent, setShowPercent] = useState<boolean>(() => {
-    const v = localStorage.getItem('showPercent');
-    return v === null ? true : v === '1';
-  });
-  // Copilot only: show the raw premium request count (used/total) in the menu bar.
-  const [showCount, setShowCount] = useState<boolean>(() => {
-    return localStorage.getItem('showCount') === '1';
-  });
   const [refreshInterval, setRefreshInterval] = useState<number>(() => {
     const v = localStorage.getItem('refreshInterval');
     const n = v ? parseInt(v, 10) : DEFAULT_REFRESH_MINUTES;
@@ -56,6 +48,14 @@ function App() {
   } | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [compactSize, setCompactSize] = useState({ width: 446, height: 136 });
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+  const [alwaysOnTop, setAlwaysOnTop] = useState<boolean>(() =>
+    localStorage.getItem(ALWAYS_ON_TOP_STORAGE_KEY) === '1'
+  );
+  const [pinning, setPinning] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   const loadClaudeUsage = useCallback(async () => {
     setClaudeLoading(true);
@@ -251,39 +251,55 @@ function App() {
   const activePercentage = source === 'claude' ? claudePrimary?.percent ?? 0 : premiumPercentage;
   const hasActiveData = source === 'claude' ? claudeUsage !== null : usage !== null;
 
+  useEffect(() => () => {
+    dragCleanupRef.current?.();
+  }, []);
+
+  useEffect(() => {
+    const detailsHeight = Math.min(900, Math.max(compactSize.height, 680));
+    void getCurrentWindow().setSize(
+      new LogicalSize(compactSize.width, expanded ? detailsHeight : compactSize.height)
+    );
+  }, [compactSize, expanded]);
+
+  useEffect(() => {
+    if (localStorage.getItem(ALWAYS_ON_TOP_STORAGE_KEY) !== '1') return;
+    void getCurrentWindow().setAlwaysOnTop(true).catch((error) => {
+      console.error('Failed to restore always-on-top setting:', error);
+      localStorage.setItem(ALWAYS_ON_TOP_STORAGE_KEY, '0');
+      setAlwaysOnTop(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void listen('usage-widget-unpinned', () => {
+      localStorage.setItem(ALWAYS_ON_TOP_STORAGE_KEY, '0');
+      setAlwaysOnTop(false);
+    }).then((stopListening) => {
+      if (disposed) stopListening();
+      else unlisten = stopListening;
+    }).catch((error) => {
+      console.error('Failed to listen for widget unpin events:', error);
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
   const copilotPlan = useMemo(() => formatCopilotPlan(usage), [usage]);
 
-  // Claude reports percentages only, so there is no count to show for that source.
-  const activeCount = source === 'claude' || !usage
-    ? null
-    : `${usage.premium_requests_used}/${usage.premium_requests_limit}`;
-
   useEffect(() => {
-    // Create an ascii progress bar like: ▰▰▱▱▱ 45% (respect showBar/showPercent)
-    // Inverse experience: start with all full blocks, then empty as usage increases.
     const totalBlocks = 5;
     const pct = Math.max(0, Math.min(100, activePercentage));
-    const filledBlocks = Math.round(((100 - pct) / 100) * totalBlocks);
-    const emptyBlocks = totalBlocks - filledBlocks;
-    const progressBar = '▰'.repeat(filledBlocks) + '▱'.repeat(emptyBlocks);
-    const segments: string[] = [];
-    if (showBar) segments.push(progressBar);
-    if (showPercent) segments.push(`${activePercentage}%`);
-    if (showCount && activeCount) segments.push(activeCount);
-    setText(hasActiveData ? ` ${segments.join(' ')}` : ' —');
-  }, [activePercentage, activeCount, hasActiveData, setText, showBar, showPercent, showCount]);
-
-  useEffect(() => {
-    localStorage.setItem('showBar', showBar ? '1' : '0');
-  }, [showBar]);
-
-  useEffect(() => {
-    localStorage.setItem('showPercent', showPercent ? '1' : '0');
-  }, [showPercent]);
-
-  useEffect(() => {
-    localStorage.setItem('showCount', showCount ? '1' : '0');
-  }, [showCount]);
+    const filledBlocks = Math.round((pct / 100) * totalBlocks);
+    const progressBar = '▰'.repeat(filledBlocks) + '▱'.repeat(totalBlocks - filledBlocks);
+    setText(hasActiveData ? ` ${progressBar} ${activePercentage}%` : ' —');
+  }, [activePercentage, hasActiveData, setText]);
 
   useEffect(() => {
     localStorage.setItem('refreshInterval', String(refreshInterval));
@@ -328,24 +344,22 @@ function App() {
     </div>
   );
 
-  const displayOptions = (
-    <div className="display-options">
-      <label><input type="checkbox" checked={showBar} onChange={(e) => setShowBar(e.target.checked)} /> Show bar</label>
-      <label><input type="checkbox" checked={showPercent} onChange={(e) => setShowPercent(e.target.checked)} /> Show percent</label>
-      {source === 'copilot' && (
-        <label><input type="checkbox" checked={showCount} onChange={(e) => setShowCount(e.target.checked)} /> Show count</label>
-      )}
+  const refreshControl = (
+    <div className="refresh-control">
       <label>
         Auto-refresh:{' '}
         <select value={refreshInterval} onChange={(e) => setRefreshInterval(Number(e.target.value))}>
-          {REFRESH_OPTIONS.map((m) => (
-            <option key={m} value={m}>{m === 1 ? '1 min' : `${m} mins`}</option>
+          {REFRESH_OPTIONS.map((minutes) => (
+            <option key={minutes} value={minutes}>
+              {minutes === 1 ? '1 min' : `${minutes} mins`}
+            </option>
           ))}
         </select>
       </label>
     </div>
   );
 
+  const dashboard = (() => {
   if (source === 'claude') {
     return (
       <div className="container">
@@ -385,7 +399,7 @@ function App() {
               ))}
             </div>
 
-            {displayOptions}
+            {refreshControl}
 
             <div className="billing-info">
               {claudePrimary?.resets_at && (
@@ -475,7 +489,7 @@ function App() {
             <ProgressBar label="Premium Requests" percent={premiumPercentage} used={usage.premium_requests_used} limit={usage.premium_requests_limit} />
           </div>
 
-          {displayOptions}
+          {refreshControl}
 
           <div className="billing-info">
             {copilotPlan && (
@@ -498,6 +512,166 @@ function App() {
         </button>
       </div>
     </div>
+  );
+  })();
+
+  const filledSegments = hasActiveData
+    ? Math.round(Math.max(0, Math.min(100, activePercentage)) / 20)
+    : 0;
+
+  const handlePillDrag = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if (event.target instanceof Element && event.target.closest('.pill-controls')) return;
+
+    dragCleanupRef.current?.();
+    const startX = event.screenX;
+    const startY = event.screenY;
+    let cleanup = () => {};
+
+    const handleMove = (moveEvent: globalThis.MouseEvent) => {
+      if (Math.hypot(moveEvent.screenX - startX, moveEvent.screenY - startY) < 5) return;
+      cleanup();
+      void getCurrentWindow().startDragging().catch((dragError) => {
+        console.error('Failed to move usage pill:', dragError);
+      });
+    };
+    const handleMouseUp = () => cleanup();
+
+    cleanup = () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      if (dragCleanupRef.current === cleanup) dragCleanupRef.current = null;
+    };
+
+    dragCleanupRef.current = cleanup;
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleMouseUp, { once: true });
+  };
+
+  const handleToggleAlwaysOnTop = async () => {
+    const nextValue = !alwaysOnTop;
+    setPinning(true);
+    setPinError(null);
+    try {
+      await getCurrentWindow().setAlwaysOnTop(nextValue);
+      localStorage.setItem(ALWAYS_ON_TOP_STORAGE_KEY, nextValue ? '1' : '0');
+      setAlwaysOnTop(nextValue);
+    } catch (error) {
+      console.error('Failed to toggle always-on-top:', error);
+      setPinError('Pin failed');
+    } finally {
+      setPinning(false);
+    }
+  };
+
+  const handleHideWidget = async () => {
+    setAlwaysOnTop(false);
+    localStorage.setItem(ALWAYS_ON_TOP_STORAGE_KEY, '0');
+    try {
+      await invoke('hide_window');
+    } catch (error) {
+      console.error('Failed to hide usage widget:', error);
+    }
+  };
+
+  const handleToggleDetails = () => {
+    if (!expanded) {
+      setCompactSize({
+        width: Math.min(900, Math.max(260, Math.round(window.innerWidth))),
+        height: Math.min(900, Math.max(76, Math.round(window.innerHeight))),
+      });
+      setExpanded(true);
+      return;
+    }
+
+    setExpanded(false);
+  };
+
+  return (
+    <main className="widget-shell">
+      <div className="usage-pill" role="group" aria-label="Usage widget" onMouseDown={handlePillDrag}>
+        <button
+          type="button"
+          className="pill-main"
+          aria-label={`${USAGE_SOURCE_LABELS[source]} usage ${hasActiveData ? `${Math.round(activePercentage)} percent` : 'unavailable'}. Click for details.`}
+          aria-expanded={expanded}
+          title="Click for details; hover for options; drag anywhere on the pill to move and resize from the edges."
+          onClick={handleToggleDetails}
+        >
+          <img className="pill-icon" src="/copilot-mark.png" alt="" draggable="false" />
+          <div className="pill-meter" aria-hidden="true">
+            {Array.from({ length: 5 }, (_, index) => (
+              <span
+                key={index}
+                className={`meter-segment${index < filledSegments ? ' is-filled' : ''}`}
+              />
+            ))}
+          </div>
+          <span className="pill-percentage">
+            {hasActiveData ? `${Math.round(activePercentage)}%` : '—'}
+          </span>
+        </button>
+        <div className="pill-controls" role="toolbar" aria-label="Widget options">
+          <button
+            type="button"
+            className={`widget-control widget-control-pin${alwaysOnTop ? ' is-active' : ''}`}
+            aria-label={pinError ?? (alwaysOnTop ? 'Unpin from top' : 'Pin on top')}
+            aria-pressed={alwaysOnTop}
+            disabled={pinning}
+            title={pinError ?? (alwaysOnTop ? 'Stop keeping the widget on top' : 'Keep the widget on top')}
+            onClick={() => void handleToggleAlwaysOnTop()}
+          >
+            <svg className="widget-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 4h8l-1 5 3 3v2H6v-2l3-3-1-5Z" />
+              <path d="M12 14v7" />
+            </svg>
+            <span className="widget-control-label">
+              {pinning ? 'Pinning' : pinError ?? (alwaysOnTop ? 'Pinned' : 'Pin on top')}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`widget-control${expanded ? ' is-active' : ''}`}
+            aria-label={expanded ? 'Close usage details' : 'Open usage details'}
+            aria-pressed={expanded}
+            title={expanded ? 'Close details' : 'Open usage details'}
+            onClick={handleToggleDetails}
+          >
+            <svg className="widget-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 5v15h16" />
+              <path d="M8 16v-3M13 16V8M18 16v-6" />
+            </svg>
+            <span className="widget-control-label">{expanded ? 'Close' : 'Details'}</span>
+          </button>
+          <button
+            type="button"
+            className="widget-control widget-control-hide"
+            aria-label="Hide widget to system tray"
+            title="Hide widget to system tray"
+            onClick={() => void handleHideWidget()}
+          >
+            <svg className="widget-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+            <span className="widget-control-label">Hide</span>
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <section className="details-panel" aria-label="Usage details">
+          <button
+            type="button"
+            className="details-close"
+            aria-label="Close details"
+            onClick={() => setExpanded(false)}
+          >
+            ×
+          </button>
+          {dashboard}
+        </section>
+      )}
+    </main>
   );
 }
 

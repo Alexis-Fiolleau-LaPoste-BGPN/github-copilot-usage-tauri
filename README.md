@@ -1,159 +1,99 @@
-# GitHub Copilot Usage Tracker
-
-A system tray application built with Tauri that displays your GitHub Copilot
-metered usage with real-time percentage bars for Premium requests, and your
-Claude subscription usage. Pick which one the menu bar shows from the tray menu.
-
 <div align="center">
-  <img src="screenshots/app-screenshot.png" alt="GitHub Copilot Usage App Screenshot" width="600">
-  <p><em>Monitor your GitHub Copilot usage effortlessly</em></p>
+
+# GitHub Copilot Usage
+
+A compact Windows widget and system-tray app for GitHub Copilot and Claude Code usage.
+
+[![Latest release](https://img.shields.io/github/v/release/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri?style=for-the-badge)](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
 </div>
+
+![Widget design reference](screenshots/app-screenshot.png)
+
+*Visual reference for the pill. The Windows app also includes hover controls and a Details view.*
+
+## What it does
+
+The app keeps a small floating pill on screen with a five-segment usage meter and percentage. It can show GitHub Copilot premium-request usage or Claude Code usage, and keeps the same information available from the system tray.
+
+## Download
+
+Download the Windows x64 executable from [Releases](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri/releases/latest):
+
+`GitHubCopilotUsage-0.7.0-windows-x64.exe`
+
+This is a portable executable, not an installer. Run it on Windows 11; the app uses the WebView2 runtime included with current Windows installations. If WebView2 is missing, install the [Evergreen WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
 
 ## Features
 
-- **System Tray Integration**: Lives in your system tray for quick access
-- **Two Sources**: Switch the menu bar between **GitHub Copilot** and **Claude**
-  from the tray menu or the in-app tabs
-- **Usage Visualization**: Visual progress bars showing Premium request usage
-  (Copilot) or session and weekly limits (Claude)
-- **Menu Bar Display Options**: Toggle the ascii bar, the percentage, and the
-  raw premium request count (`used/total`) independently
-- **License**: Shows which GitHub Copilot plan the account is on (Free, Pro,
-  Pro+, Business, Enterprise) in the app and the tray menu
-- **Auto-Refresh**: Automatically updates usage data every 5 minutes
-- **Secure Token Storage**: Stores your GitHub token locally
-- **Authentication Options**: Choose between automated GitHub OAuth or manual
-  token entry
-- **Cross-Platform**: Works on macOS, Windows, and Linux
+- Floating pill with live percentage and left-to-right usage segments.
+- Drag anywhere on the pill to move it; resize it from the window edges.
+- Hover controls to pin on top, open Details, or hide to the tray.
+- Details preserves the pill's custom size when opened and restores it when closed.
+- Hiding or minimizing unpins the window; the pin state is cleared when the widget returns.
+- Tray menu for source selection, usage breakdown, refresh, show/hide, start-at-login, and quit.
+- GitHub Copilot login through GitHub's device flow or a manually supplied token.
+- Claude Code usage from the existing Claude Code login on the same machine.
+- Automatic refresh every 1, 5, 15, or 30 minutes (5 minutes by default).
 
-## Prerequisites
+## First run
 
-- Node.js (v20 or higher)
-- Rust (latest stable version)
-- GitHub account with Copilot access (for automated authentication) or a
-  Personal Access Token
-- For Claude usage: the [Claude Code](https://claude.com/claude-code) CLI,
-  signed in on the same machine
+1. Start the executable and open Details from the pill.
+2. Select GitHub Copilot and sign in with GitHub, or enter a Copilot token.
+3. To view Claude usage, sign in with the Claude Code CLI on the same machine, then select Claude.
+4. Use the tray menu to switch sources, refresh, or restore a hidden pill.
 
-If Rust is installed via `rustup`, make sure a toolchain is configured before
-running Tauri:
+The Copilot token is stored in the app's local WebView storage. The app does not encrypt that value itself; use a token you are comfortable storing on this device and remove it with **Change Token** before handing the device to someone else.
 
-```bash
-rustup default stable
-```
+Claude usage depends on the login maintained by Claude Code. The app reads the local credentials and requests usage data; it does not sign in to Claude separately.
 
-Optional (repo-local instead of changing your global default):
+## Build from source on Windows
 
-```bash
-rustup override set stable
-```
+Requirements:
 
-If no toolchain is configured, `tauri dev` fails while running `cargo metadata`
-with an error like `rustup could not choose a version of cargo to run`.
+- Windows x64
+- Node.js 20 or newer
+- Rust stable via `rustup`
+- MSYS2 installed at `%LOCALAPPDATA%\Programs\MSYS2`, with the MINGW64 GCC and binutils packages
 
-### Linux (Ubuntu/Debian)
-
-Tauri on Linux requires a few system libraries (GTK + WebKit) for the Rust
-backend to compile.
+Install MSYS2 from [msys2.org](https://www.msys2.org/). In its MINGW64 terminal, install the compiler tools:
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev
+pacman -Syu
+pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils
 ```
 
-## Getting Started
+Then, from PowerShell at the repository root, run:
 
-### Installation
-
-```bash
-npm install
+```powershell
+.\scripts\build-windows.ps1
 ```
 
-### Development
+The script installs frontend dependencies and builds the portable executable at:
 
-```bash
-npm run tauri dev
+```text
+src-tauri\target\x86_64-pc-windows-gnu\release\GitHubCopilotUsage.exe
 ```
 
-### Build
+To run the frontend and Tauri app during development, install dependencies with `npm ci`, then use `npm run tauri dev` with the standard Tauri prerequisites for your Rust toolchain.
 
-```bash
-npm run tauri build
+## Usage data and APIs
+
+- GitHub Copilot usage comes from GitHub's Copilot usage endpoint.
+- Claude usage uses the endpoint used by Claude Code's own usage display.
+
+These endpoints are not stable public APIs and may change. Usage data is refreshed on demand or at the selected interval; it is not guaranteed to be real-time.
+
+## Repository layout
+
+```text
+src/                    React + TypeScript interface
+src-tauri/              Tauri and Rust application
+scripts/build-windows.ps1  Reproducible Windows GNU build
+screenshots/             Widget visual reference
 ```
-
-## Usage
-
-1. Launch the application
-2. Choose your authentication method:
-   - **Automated Authentication**: Click "🔑 Login with GitHub" to start the
-     OAuth flow. Your browser will open to authorize the app, then enter the
-     provided code when prompted.
-   - **Manual Token Entry**: Enter your GitHub Personal Access Token directly
-3. The app will fetch and display your Copilot usage and licence
-4. Click the system tray icon to show/hide the usage window
-5. Usage data refreshes automatically every 5 minutes
-
-### Menu bar display
-
-Three checkboxes control what the menu bar shows, and the choice is remembered:
-
-- **Show bar** — the ascii progress bar, e.g. `▰▰▰▰▱`
-- **Show percent** — the used percentage, e.g. `45%`
-- **Show count** — the raw premium request count, e.g. `649/20000`
-  (GitHub Copilot only; Claude reports percentages only)
-
-## Authentication Setup
-
-### Automated GitHub OAuth (Recommended)
-
-The app uses GitHub's device code OAuth flow for secure authentication:
-
-1. Click "🔑 Login with GitHub" in the app
-2. Your default browser will open to GitHub's authorization page
-3. Enter the displayed user code when prompted
-4. Grant permission for Copilot access
-5. The app will automatically receive and store your access token
-
-### Manual Token Entry
-
-If you prefer to use a Personal Access Token:
-
-1. Create a token at: https://github.com/settings/tokens
-2. Ensure it has the `copilot` scope (required for Copilot usage data)
-3. Enter the token in the app's input field
-4. Click "Save Token"
-
-**Note**: The automated flow is recommended as it handles token refresh and uses
-the correct scopes automatically.
-
-## Claude Usage
-
-Claude usage reuses the login the Claude Code CLI already keeps on your machine,
-so there is no separate sign-in:
-
-1. Sign in once with the Claude Code CLI (run `claude`, then `/login`)
-2. Pick **Claude** in the tray menu under "Show usage for", or the in-app tab
-3. The app shows your session (5-hour) and weekly limits with reset times
-
-The menu bar shows the window closest to its limit — the one that will actually
-cut you off first — while the dropdown breaks out each window individually.
-
-Credentials are read fresh on every refresh (macOS Keychain, or
-`~/.claude/.credentials.json` elsewhere). The app never refreshes the token
-itself; Claude Code owns that, so if the login expires just run the CLI once.
-The first refresh on macOS asks for permission to read the Keychain item.
-
-**Note**: the endpoint behind this is the same undocumented one the Claude Code
-CLI uses for its own `/usage` display. It is not a supported public API and may
-change.
-
-## Tech Stack
-
-- **Frontend**: React + TypeScript
-- **Backend**: Tauri (Rust)
-- **Build Tool**: Vite
-- **APIs**: GitHub Copilot Internal API, Anthropic OAuth usage endpoint
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
