@@ -6,16 +6,16 @@
 
 A lightweight Windows widget for GitHub Copilot AI-credit and Claude Code usage.
 
-[Download GCT 0.7.2](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri/releases/latest) · [Showcase](https://alexis-fiolleau-laposte-bgpn.github.io/github-copilot-usage-tauri/) · [Source](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri)
+[Download GCT 0.7.2](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker/releases/latest) · [Showcase](https://alexis-fiolleau-laposte-bgpn.github.io/github-copilot-tracker/) · [Source](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker)
 
-[![Latest release](https://img.shields.io/github/v/release/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri?style=for-the-badge)](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker?style=for-the-badge)](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker/releases/latest)
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 </div>
 
-![GCT floating usage pill design reference](docs/widget-reference.png)
+![Live screenshot of the GCT usage pill showing 22%](screenshots/gct-widget-live.png)
 
-*Design reference; the percentage shown is illustrative, not live usage data.*
+*Fresh capture of the running GCT pill. It showed 22% when captured; the live percentage varies with usage.*
 
 ## What it does
 
@@ -23,7 +23,7 @@ GCT keeps a compact, movable pill on your Windows desktop so you can check GitHu
 
 ## Download and run
 
-Download `GCT-0.7.2-windows-x64.zip` from [Releases](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri/releases/latest). Extract the archive and keep `gct.exe` and `WebView2Loader.dll` together, then run `gct.exe`.
+Download `GCT-0.7.2-windows-x64.zip` from [Releases](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker/releases/latest). Extract the archive and keep `gct.exe` and `WebView2Loader.dll` together, then run `gct.exe`.
 
 Requirements: Windows 11 and the Microsoft [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/). Current Windows installations usually include it.
 
@@ -57,9 +57,9 @@ The build produces `src-tauri\target\x86_64-pc-windows-gnu\release\gct.exe` and 
 
 ## Links
 
-- [Showcase page](https://alexis-fiolleau-laposte-bgpn.github.io/github-copilot-usage-tauri/)
-- [Releases](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri/releases)
-- [Report a problem](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri/issues)
+- [Showcase page](https://alexis-fiolleau-laposte-bgpn.github.io/github-copilot-tracker/)
+- [Releases](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker/releases)
+- [Report a problem](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker/issues)
 
 ## License
 
