@@ -6,16 +6,18 @@
 
 A lightweight Windows widget for GitHub Copilot AI-credit and Claude Code usage.
 
-[Download GCT 0.7.2](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker/releases/latest) · [Showcase](https://alexis-fiolleau-laposte-bgpn.github.io/github-copilot-tracker/) · [Source](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker)
+[Download the latest Windows release](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker/releases/latest) · [Showcase](https://alexis-fiolleau-laposte-bgpn.github.io/github-copilot-tracker/) · [Source](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker)
 
 [![Latest release](https://img.shields.io/github/v/release/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker?style=for-the-badge)](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker/releases/latest)
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 </div>
 
-![Live screenshot of the GCT usage pill showing 22%](screenshots/gct-widget-live.png)
+<p align="center">
+  <img src="screenshots/gct-widget-live.png" alt="Live screenshot of the GCT usage pill showing 22%" width="640">
+</p>
 
-*Fresh capture of the running GCT pill. It showed 22% when captured; the live percentage varies with usage.*
+<p align="center"><em>Fresh capture of the running GCT pill. It showed 22% when captured; the live percentage varies with usage.</em></p>
 
 ## What it does
 
@@ -23,7 +25,7 @@ GCT keeps a compact, movable pill on your Windows desktop so you can check GitHu
 
 ## Download and run
 
-Download `GCT-0.7.2-windows-x64.zip` from [Releases](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker/releases/latest). Extract the archive and keep `gct.exe` and `WebView2Loader.dll` together, then run `gct.exe`.
+Download the latest Windows release from [Releases](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-tracker/releases/latest). The Windows ZIP contains `gct.exe` and `WebView2Loader.dll`; extract both to the same folder and run `gct.exe`.
 
 Requirements: Windows 11 and the Microsoft [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/). Current Windows installations usually include it.
 
