@@ -89,7 +89,7 @@ export const TrayProvider: React.FC<{ tray: TrayIcon | null; children?: React.Re
   }, [autostartEnabled]);
 
   const setText = useCallback(async (text?: string) => {
-    const tooltip = `${USAGE_SOURCE_LABELS[source]} Usage${text ? ` - ${text.trim()}` : ''}`;
+    const tooltip = `GCT · ${USAGE_SOURCE_LABELS[source]} Usage${text ? ` - ${text.trim()}` : ''}`;
     try {
       if (tray) {
         await tray.setTitle(text ?? '');

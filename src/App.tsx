@@ -454,7 +454,7 @@ function App() {
   if (!hasToken) {
     return (
       <div className="container">
-        <h1>GitHub Copilot Usage</h1>
+        <h1>GCT</h1>
         {sourcePicker}
         <div className="token-setup">
           <p>Enter your GitHub Personal Access Token or use the GitHub login</p>
@@ -510,7 +510,7 @@ function App() {
 
   return (
     <div className="container">
-      <h1>GitHub Copilot Usage</h1>
+      <h1>GCT</h1>
       {sourcePicker}
 
       {loading && <div className="status">Loading...</div>}

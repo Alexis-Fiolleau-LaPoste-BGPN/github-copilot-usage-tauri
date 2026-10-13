@@ -43,7 +43,7 @@ try {
         npm.cmd run tauri -- build --target x86_64-pc-windows-gnu --no-bundle
         if ($LASTEXITCODE -ne 0) { throw 'The Tauri Windows GNU build failed.' }
 
-        $artifact = Join-Path $repo 'src-tauri\target\x86_64-pc-windows-gnu\release\GitHubCopilotUsage.exe'
+        $artifact = Join-Path $repo 'src-tauri\target\x86_64-pc-windows-gnu\release\gct.exe'
         if (-not (Test-Path $artifact)) { throw "Build reported success but no executable exists at $artifact" }
         Write-Host "Built: $artifact"
     }

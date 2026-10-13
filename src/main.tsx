@@ -11,7 +11,7 @@ import { invoke } from "@tauri-apps/api/core";
     items: [
       {
         id: 'show',
-        text: 'Show App',
+        text: 'Show GCT',
         action: () => {
           invoke('show_window');
         },
@@ -28,7 +28,7 @@ import { invoke } from "@tauri-apps/api/core";
 
   const options = {
     id: 'main',
-    title: 'GitHub Copilot Usage',
+    title: 'GCT',
     menu,
     menuOnLeftClick: true,
   };

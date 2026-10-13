@@ -1,7 +1,8 @@
 {
-  "name": "github-copilot-usage",
+  "name": "gct",
   "private": true,
-  "version": "0.7.1",
+  "description": "A Windows usage widget for GitHub Copilot AI credits and Claude Code, with an estimated euro equivalent.",
+  "version": "0.7.2",
   "type": "module",
   "author": "Elio Struyf <elio@struyfconsulting.be> (https://www.eliostruyf.com)",
   "scripts": {
