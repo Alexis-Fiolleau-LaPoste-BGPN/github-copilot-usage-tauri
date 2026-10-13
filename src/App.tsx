@@ -5,6 +5,7 @@ import { startAuthFlow, completeAuthFlow, closeAuthServer } from './services/aut
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
+import { getVersion } from '@tauri-apps/api/app';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -30,6 +31,19 @@ import './App.css';
 import { useTray } from './contexts/TrayContext';
 import ProgressBar from './components/ProgressBar';
 import SettingsPanel from './components/SettingsPanel';
+import {
+  cacheAvailableUpdate,
+  clearCachedAvailableUpdate,
+  compareVersions,
+  fetchAvailableUpdate,
+  getCachedAvailableUpdate,
+  getTimeUntilNextUpdateCheck,
+  markUpdateCheckAttempt,
+  markUpdateNotificationSent,
+  shouldCheckForUpdates,
+  wasUpdateNotificationSent,
+  type AvailableUpdate,
+} from './services/updates';
 
 const REFRESH_OPTIONS = [1, 5, 15, 30];
 const DEFAULT_REFRESH_MINUTES = 5;
@@ -40,6 +54,9 @@ function App() {
   const [language, setLanguage] = useState<Language>(() => getStoredLanguage());
   const [currency, setCurrency] = useState<CurrencyCode>(() => getStoredCurrency());
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
+  const languageRef = useRef(language);
+  languageRef.current = language;
   const [usdExchangeRate, setUsdExchangeRate] = useState(() => getCachedUsdExchangeRate(currency));
   const t = (key: TranslationKey) => translate(language, key);
 
@@ -113,6 +130,65 @@ function App() {
       window.clearInterval(refreshInterval);
     };
   }, [currency]);
+
+  useEffect(() => {
+    const checkForUpdate = async () => {
+      try {
+        const isDue = shouldCheckForUpdates();
+        if (isDue) markUpdateCheckAttempt();
+
+        const currentVersion = await getVersion();
+        const cachedUpdate = getCachedAvailableUpdate();
+        if (cachedUpdate && compareVersions(cachedUpdate.version, currentVersion) > 0) {
+          setAvailableUpdate(cachedUpdate);
+        } else {
+          clearCachedAvailableUpdate();
+          setAvailableUpdate(null);
+        }
+        if (!isDue) return;
+
+        const update = await fetchAvailableUpdate(currentVersion);
+        if (!update) {
+          clearCachedAvailableUpdate();
+          setAvailableUpdate(null);
+          return;
+        }
+
+        cacheAvailableUpdate(update);
+        setAvailableUpdate(update);
+        if (wasUpdateNotificationSent(update.version)) return;
+
+        try {
+          if (!(await isPermissionGranted())) return;
+          await sendNotification({
+            title: translate(languageRef.current, 'updateNotificationTitle'),
+            body: translate(languageRef.current, 'updateNotificationBody', { version: update.version }),
+          });
+          markUpdateNotificationSent(update.version);
+        } catch (notificationError) {
+          console.debug('Could not send update notification:', notificationError);
+        }
+      } catch (error) {
+        console.debug('Could not check for GCT updates:', error);
+      }
+    };
+
+    let isDisposed = false;
+    let timeout: number | undefined;
+    const scheduleNextCheck = () => {
+      if (isDisposed) return;
+      timeout = window.setTimeout(async () => {
+        await checkForUpdate();
+        scheduleNextCheck();
+      }, getTimeUntilNextUpdateCheck());
+    };
+
+    void checkForUpdate().then(scheduleNextCheck);
+    return () => {
+      isDisposed = true;
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
+  }, []);
 
   const loadClaudeUsage = useCallback(async () => {
     setClaudeLoading(true);
@@ -730,9 +806,13 @@ function App() {
           <button
             type="button"
             className={`widget-control${expanded ? ' is-active' : ''}`}
-            aria-label={expanded ? t('closeDetails') : t('openDetails')}
+            aria-label={availableUpdate
+              ? `${t('openDetails')}. ${t('updateAvailable')} ${availableUpdate.version}`
+              : expanded ? t('closeDetails') : t('openDetails')}
             aria-pressed={expanded}
-            title={expanded ? t('closeDetails') : t('openDetails')}
+            title={availableUpdate
+              ? `${t('openDetails')} — ${t('updateAvailable')} ${availableUpdate.version}`
+              : expanded ? t('closeDetails') : t('openDetails')}
             onClick={handleToggleDetails}
           >
             <svg className="widget-control-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -740,6 +820,7 @@ function App() {
               <path d="M8 16v-3M13 16V8M18 16v-6" />
             </svg>
             <span className="widget-control-label">{expanded ? t('close') : t('details')}</span>
+            {availableUpdate && <span className="update-indicator" aria-hidden="true" />}
           </button>
           <button
             type="button"
@@ -783,6 +864,23 @@ function App() {
               ×
             </button>
           </div>
+          {availableUpdate && (
+            <aside className="update-notice" role="status" aria-live="polite">
+              <div className="update-notice-copy">
+                <strong>{t('updateAvailable')}</strong>
+                <p>{translate(language, 'updateAvailableBody', { version: availableUpdate.version })}</p>
+              </div>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => void openUrl(availableUpdate.releaseUrl).catch((error) => {
+                  console.error('Failed to open the GCT release page:', error);
+                })}
+              >
+                {t('downloadUpdate')}
+              </button>
+            </aside>
+          )}
           <SettingsPanel
             language={language}
             currency={currency}

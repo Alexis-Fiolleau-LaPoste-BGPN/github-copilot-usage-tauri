@@ -40,6 +40,10 @@ Open Details from the pill, then use Settings to choose English or French and an
 - Tray controls for source selection, refresh, usage details, start-at-login, and quitting.
 - Configurable automatic refresh intervals.
 
+## Updates
+
+GCT checks the latest published GitHub Release at startup when the previous check was at least 24 hours ago, then checks daily while it remains open. If a newer stable release is available, GCT sends a notification when notifications are already permitted and shows a download link in Details. Updates are user-initiated; GCT does not silently replace the app. If the network is unavailable, the check is retried on the next daily interval.
+
 ## Privacy and credentials
 
 The Copilot token is stored in the app's local WebView storage. GCT does not encrypt it itself. Use a token you are comfortable storing on this device, and remove it with **Change Token** before handing the device to someone else.
