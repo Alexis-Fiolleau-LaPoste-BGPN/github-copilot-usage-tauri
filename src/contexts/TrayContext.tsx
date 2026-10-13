@@ -8,6 +8,7 @@ type CopilotMenuInfo = {
   premiumUsed: number;
   premiumLimit: number;
   premiumRemaining: number;
+  premiumEuroEquivalent: string | null;
   /** Friendly licence name, e.g. "Copilot Pro+". */
   plan: string | null;
   organizations: string[];
@@ -119,12 +120,15 @@ export const TrayProvider: React.FC<{ tray: TrayIcon | null; children?: React.Re
 
       // Usage for whichever source is currently selected.
       if (source === 'copilot' && state?.copilot) {
-        const { premiumUsed, premiumLimit, premiumRemaining, plan, organizations } = state.copilot;
+        const { premiumUsed, premiumLimit, premiumRemaining, premiumEuroEquivalent, plan, organizations } = state.copilot;
         items.push(
-          { id: 'usage_header', text: 'Premium Requests', enabled: false },
+          { id: 'usage_header', text: 'AI Credits', enabled: false },
           { id: 'usage_used', text: `  Used: ${premiumUsed} / ${premiumLimit}`, enabled: false },
           { id: 'usage_remaining', text: `  Remaining: ${premiumRemaining}`, enabled: false }
         );
+        if (premiumEuroEquivalent) {
+          items.push({ id: 'usage_euro_equivalent', text: `  Equivalent value: ${premiumEuroEquivalent}`, enabled: false });
+        }
         if (plan) {
           const org = organizations.length > 0 ? ` (${organizations.join(', ')})` : '';
           items.push({ id: 'usage_plan', text: `  License: ${plan}${org}`, enabled: false });

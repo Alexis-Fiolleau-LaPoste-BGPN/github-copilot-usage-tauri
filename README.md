@@ -15,19 +15,20 @@ A compact Windows widget and system-tray app for GitHub Copilot and Claude Code 
 
 ## What it does
 
-The app keeps a small floating pill on screen with a five-segment usage meter and percentage. It can show GitHub Copilot premium-request usage or Claude Code usage, and keeps the same information available from the system tray.
+The app keeps a small floating pill on screen with a five-segment usage meter and percentage. It can show GitHub Copilot AI-credit usage with an estimated euro equivalent, or Claude Code usage, and keeps the same information available from the system tray.
 
 ## Download
 
 Download the Windows x64 executable from [Releases](https://github.com/Alexis-Fiolleau-LaPoste-BGPN/github-copilot-usage-tauri/releases/latest):
 
-`GitHubCopilotUsage-0.7.0-windows-x64.exe`
+`GitHubCopilotUsage-0.7.1-windows-x64.exe`
 
 This is a portable executable, not an installer. Run it on Windows 11; the app uses the WebView2 runtime included with current Windows installations. If WebView2 is missing, install the [Evergreen WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
 
 ## Features
 
 - Floating pill with live percentage and left-to-right usage segments.
+- Copilot AI-credit usage with an approximate euro equivalent, refreshed using a daily USD/EUR reference rate.
 - Drag anywhere on the pill to move it; resize it from the window edges.
 - Hover controls to pin on top, open Details, or hide to the tray.
 - Details preserves the pill's custom size when opened and restores it when closed.

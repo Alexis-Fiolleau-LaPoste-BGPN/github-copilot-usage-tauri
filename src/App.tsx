@@ -7,6 +7,7 @@ import { isPermissionGranted, requestPermission, sendNotification } from '@tauri
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { convertAiCreditsToEuro, fetchUsdToEurRate, formatEuroAmount, getCachedUsdToEurRate } from './services/currency';
 import { USAGE_SOURCE_LABELS, type ClaudeStatus, type ClaudeUsage, type CopilotUsage } from './types';
 import './App.css';
 import { useTray } from './contexts/TrayContext';
@@ -32,6 +33,7 @@ function App() {
   const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus | null>(null);
   const [claudeLoading, setClaudeLoading] = useState(false);
   const [claudeError, setClaudeError] = useState<string | null>(null);
+  const [usdToEurRate, setUsdToEurRate] = useState(() => getCachedUsdToEurRate());
 
   const [refreshInterval, setRefreshInterval] = useState<number>(() => {
     const v = localStorage.getItem('refreshInterval');
@@ -56,6 +58,26 @@ function App() {
   );
   const [pinning, setPinning] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+    const refreshRate = () => {
+      void fetchUsdToEurRate()
+        .then((rate) => {
+          if (isActive) setUsdToEurRate(rate);
+        })
+        .catch((error) => {
+          console.debug('Could not refresh USD/EUR rate; using the cached rate if available:', error);
+        });
+    };
+
+    refreshRate();
+    const refreshInterval = window.setInterval(refreshRate, 24 * 60 * 60 * 1000);
+    return () => {
+      isActive = false;
+      window.clearInterval(refreshInterval);
+    };
+  }, []);
 
   const loadClaudeUsage = useCallback(async () => {
     setClaudeLoading(true);
@@ -123,9 +145,13 @@ function App() {
       }
       if (!granted) return;
 
+      const euroRate = getCachedUsdToEurRate();
+      const euroEquivalent = euroRate
+        ? ` — approx. ${formatEuroAmount(convertAiCreditsToEuro(data.premium_requests_used, euroRate.rate))} equivalent value`
+        : '';
       await sendNotification({
-        title: 'Copilot Quota Alert',
-        body: `${threshold}% of premium requests used (${data.premium_requests_used}/${data.premium_requests_limit})`,
+        title: 'Copilot AI Credits Alert',
+        body: `${threshold}% of AI credits used (${data.premium_requests_used}/${data.premium_requests_limit})${euroEquivalent}`,
       });
       localStorage.setItem(storageKey, '1');
     } catch (e) {
@@ -245,6 +271,12 @@ function App() {
     return value;
   }, [usage?.premium_requests_used, usage?.premium_requests_limit]);
 
+  const premiumEuroEquivalent = useMemo(() => (
+    usage && usdToEurRate
+      ? convertAiCreditsToEuro(usage.premium_requests_used, usdToEurRate.rate)
+      : null
+  ), [usage?.premium_requests_used, usdToEurRate]);
+
   const claudePrimary = useMemo(() => primaryWindow(claudeUsage), [claudeUsage]);
 
   // The single number the menu bar shows for the selected source.
@@ -312,6 +344,7 @@ function App() {
             premiumUsed: usage.premium_requests_used,
             premiumLimit: usage.premium_requests_limit,
             premiumRemaining: Math.max(0, usage.premium_requests_limit - usage.premium_requests_used),
+            premiumEuroEquivalent: premiumEuroEquivalent === null ? null : formatEuroAmount(premiumEuroEquivalent),
             plan: copilotPlan,
             organizations: usage.organizations,
           }
@@ -327,7 +360,7 @@ function App() {
         : null,
       claudeAvailable: claudeStatus?.available ?? false,
     }, handleRefresh);
-  }, [usage, copilotPlan, claudeUsage, claudeStatus?.available, updateMenu, handleRefresh]);
+  }, [usage, copilotPlan, premiumEuroEquivalent, claudeUsage, claudeStatus?.available, updateMenu, handleRefresh]);
 
   const sourcePicker = (
     <div className="source-picker">
@@ -486,7 +519,15 @@ function App() {
       {usage && (
         <>
           <div className="usage-section">
-            <ProgressBar label="Premium Requests" percent={premiumPercentage} used={usage.premium_requests_used} limit={usage.premium_requests_limit} />
+            <ProgressBar
+              label="AI Credits"
+              percent={premiumPercentage}
+              used={usage.premium_requests_used}
+              limit={usage.premium_requests_limit}
+              variant="premium"
+              euroEquivalent={premiumEuroEquivalent}
+              euroRateDate={usdToEurRate?.date}
+            />
           </div>
 
           {refreshControl}

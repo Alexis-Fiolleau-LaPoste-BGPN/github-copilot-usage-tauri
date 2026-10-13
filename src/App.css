@@ -116,6 +116,13 @@ h2 {
   text-align: center;
 }
 
+.usage-euro-equivalent {
+  margin-top: 3px;
+  color: #786b5d;
+  font-size: 12px;
+  text-align: center;
+}
+
 .billing-info {
   background-color: #fbfbfe;
   padding: 14px;
