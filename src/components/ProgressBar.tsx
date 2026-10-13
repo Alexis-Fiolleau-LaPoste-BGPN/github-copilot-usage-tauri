@@ -1,4 +1,9 @@
-import { formatEuroAmount } from '../services/currency';
+import {
+  formatCurrencyAmount,
+  formatExchangeRateDate,
+  type CurrencyCode,
+} from '../services/currency';
+import { translate, type Language } from '../i18n';
 
 type Props = {
   label: string;
@@ -8,13 +13,32 @@ type Props = {
   className?: string;
   /** Colour of the fill. Derived from the label when not given. */
   variant?: 'premium' | 'standard' | 'claude';
-  euroEquivalent?: number | null;
-  euroRateDate?: string;
+  currencyEquivalent?: number | null;
+  currency?: CurrencyCode;
+  currencyRateDate?: string | null;
+  language?: Language;
 };
 
-export default function ProgressBar({ label, percent, used, limit, className, variant, euroEquivalent, euroRateDate }: Props) {
+export default function ProgressBar({
+  label,
+  percent,
+  used,
+  limit,
+  className,
+  variant,
+  currencyEquivalent,
+  currency = 'EUR',
+  currencyRateDate,
+  language = 'en',
+}: Props) {
   const pct = Math.max(0, Math.min(100, Math.round(percent || 0)));
   const fill = variant ?? (label.toLowerCase().includes('premium') ? 'premium' : 'standard');
+  const rateDate = formatExchangeRateDate(currencyRateDate ?? null, language);
+  const dateSuffix = rateDate ? translate(language, 'rateDateSuffix', { date: rateDate }) : '';
+  const tooltip = currency === 'USD'
+    ? translate(language, 'usdCurrencyTooltip')
+    : translate(language, 'currencyTooltip', { currency, date: dateSuffix });
+
   return (
     <div className={className}>
       <h2>{label}</h2>
@@ -24,12 +48,14 @@ export default function ProgressBar({ label, percent, used, limit, className, va
       <div className="usage-text">
         {typeof used === 'number' && typeof limit === 'number' ? `${used} / ${limit} (${pct}%)` : `(${pct}%)`}
       </div>
-      {typeof euroEquivalent === 'number' && Number.isFinite(euroEquivalent) && (
+      {typeof currencyEquivalent === 'number' && Number.isFinite(currencyEquivalent) && (
         <div
-          className="usage-euro-equivalent"
-          title={`Equivalent value based on 1 GitHub AI credit = $0.01 USD and the USD/EUR reference rate${euroRateDate ? ` for ${euroRateDate}` : ''}. It is not necessarily an amount billed.`}
+          className="usage-currency-equivalent"
+          title={tooltip}
         >
-          Approx. {formatEuroAmount(euroEquivalent)} equivalent value
+          {translate(language, 'approximateEquivalent', {
+            amount: formatCurrencyAmount(currencyEquivalent, currency, language),
+          })}
         </div>
       )}
     </div>

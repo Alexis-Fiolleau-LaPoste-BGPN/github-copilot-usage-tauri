@@ -7,11 +7,29 @@ import { isPermissionGranted, requestPermission, sendNotification } from '@tauri
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
-import { convertAiCreditsToEuro, fetchUsdToEurRate, formatEuroAmount, getCachedUsdToEurRate } from './services/currency';
+import {
+  convertAiCreditsToCurrency,
+  fetchUsdExchangeRate,
+  formatCurrencyAmount,
+  getCachedUsdExchangeRate,
+  getStoredCurrency,
+  storeCurrency,
+  type CurrencyCode,
+} from './services/currency';
+import {
+  getStoredLanguage,
+  localeForLanguage,
+  storeLanguage,
+  translate,
+  translateClaudeWindowLabel,
+  type Language,
+  type TranslationKey,
+} from './i18n';
 import { USAGE_SOURCE_LABELS, type ClaudeStatus, type ClaudeUsage, type CopilotUsage } from './types';
 import './App.css';
 import { useTray } from './contexts/TrayContext';
 import ProgressBar from './components/ProgressBar';
+import SettingsPanel from './components/SettingsPanel';
 
 const REFRESH_OPTIONS = [1, 5, 15, 30];
 const DEFAULT_REFRESH_MINUTES = 5;
@@ -19,6 +37,22 @@ const ALWAYS_ON_TOP_STORAGE_KEY = 'usageAlwaysOnTop';
 
 function App() {
   const { setText, updateMenu, source, setSource } = useTray();
+  const [language, setLanguage] = useState<Language>(() => getStoredLanguage());
+  const [currency, setCurrency] = useState<CurrencyCode>(() => getStoredCurrency());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [usdExchangeRate, setUsdExchangeRate] = useState(() => getCachedUsdExchangeRate(currency));
+  const t = (key: TranslationKey) => translate(language, key);
+
+  const handleLanguageChange = (nextLanguage: Language) => {
+    storeLanguage(nextLanguage);
+    setLanguage(nextLanguage);
+  };
+
+  const handleCurrencyChange = (nextCurrency: CurrencyCode) => {
+    storeCurrency(nextCurrency);
+    setUsdExchangeRate(getCachedUsdExchangeRate(nextCurrency));
+    setCurrency(nextCurrency);
+  };
 
   const [userCode, setUserCode] = useState<string>('');
   const [usage, setUsage] = useState<CopilotUsage | null>(null);
@@ -33,7 +67,6 @@ function App() {
   const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus | null>(null);
   const [claudeLoading, setClaudeLoading] = useState(false);
   const [claudeError, setClaudeError] = useState<string | null>(null);
-  const [usdToEurRate, setUsdToEurRate] = useState(() => getCachedUsdToEurRate());
 
   const [refreshInterval, setRefreshInterval] = useState<number>(() => {
     const v = localStorage.getItem('refreshInterval');
@@ -61,13 +94,15 @@ function App() {
 
   useEffect(() => {
     let isActive = true;
+    setUsdExchangeRate(getCachedUsdExchangeRate(currency));
+
     const refreshRate = () => {
-      void fetchUsdToEurRate()
+      void fetchUsdExchangeRate(currency)
         .then((rate) => {
-          if (isActive) setUsdToEurRate(rate);
+          if (isActive) setUsdExchangeRate(rate);
         })
         .catch((error) => {
-          console.debug('Could not refresh USD/EUR rate; using the cached rate if available:', error);
+          console.debug(`Could not refresh USD/${currency} rate; using the cached rate if available:`, error);
         });
     };
 
@@ -77,7 +112,7 @@ function App() {
       isActive = false;
       window.clearInterval(refreshInterval);
     };
-  }, []);
+  }, [currency]);
 
   const loadClaudeUsage = useCallback(async () => {
     setClaudeLoading(true);
@@ -126,7 +161,7 @@ function App() {
     }, refreshInterval * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [hasToken, token, refreshInterval]);
+  }, [hasToken, token, refreshInterval, language, currency]);
 
   const checkAndNotify = async (data: CopilotUsage) => {
     const pct = calculatePercentage(data.premium_requests_used, data.premium_requests_limit);
@@ -145,13 +180,24 @@ function App() {
       }
       if (!granted) return;
 
-      const euroRate = getCachedUsdToEurRate();
-      const euroEquivalent = euroRate
-        ? ` — approx. ${formatEuroAmount(convertAiCreditsToEuro(data.premium_requests_used, euroRate.rate))} equivalent value`
+      const exchangeRate = getCachedUsdExchangeRate(currency);
+      const equivalent = exchangeRate
+        ? translate(language, 'notificationEquivalent', {
+            amount: formatCurrencyAmount(
+              convertAiCreditsToCurrency(data.premium_requests_used, exchangeRate.rate),
+              currency,
+              language,
+            ),
+          })
         : '';
       await sendNotification({
-        title: 'Copilot AI Credits Alert',
-        body: `${threshold}% of AI credits used (${data.premium_requests_used}/${data.premium_requests_limit})${euroEquivalent}`,
+        title: t('notificationTitle'),
+        body: translate(language, 'notificationBody', {
+          threshold,
+          used: data.premium_requests_used,
+          limit: data.premium_requests_limit,
+          equivalent,
+        }),
       });
       localStorage.setItem(storageKey, '1');
     } catch (e) {
@@ -174,7 +220,7 @@ function App() {
       setUsage(data);
       checkAndNotify(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch usage data');
+      setError(err instanceof Error ? err.message : t('failedUsageFetch'));
     } finally {
       setLoading(false);
     }
@@ -201,7 +247,7 @@ function App() {
     } else if (token) {
       loadUsage(token);
     }
-  }, [source, token, loadClaudeUsage]);
+  }, [source, token, loadClaudeUsage, language, currency]);
 
   const startPollingForToken = async (
     deviceCode: string,
@@ -223,13 +269,13 @@ function App() {
         message.includes('slow_down');
 
       if (!isPending) {
-        setAuthError(message || 'Authentication failed');
+        setAuthError(message || t('authenticationFailed'));
         setAuthState(null);
         return;
       }
 
       if (attempts >= 30) { // Max 5 minutes (30 attempts at 10 seconds each)
-        setAuthError('Authentication timed out after 5 minutes');
+        setAuthError(t('authenticationTimedOut'));
         setAuthState(null);
         return;
       }
@@ -260,7 +306,7 @@ function App() {
       console.log("Starting polling");
       startPollingForToken(result.device_code, result.interval);
     } catch (err) {
-      setAuthError(err instanceof Error ? err.message : 'Failed to start authentication');
+      setAuthError(err instanceof Error ? err.message : t('failedStartAuthentication'));
     } finally {
       setAuthLoading(false);
     }
@@ -271,11 +317,11 @@ function App() {
     return value;
   }, [usage?.premium_requests_used, usage?.premium_requests_limit]);
 
-  const premiumEuroEquivalent = useMemo(() => (
-    usage && usdToEurRate
-      ? convertAiCreditsToEuro(usage.premium_requests_used, usdToEurRate.rate)
+  const premiumCurrencyEquivalent = useMemo(() => (
+    usage && usdExchangeRate
+      ? convertAiCreditsToCurrency(usage.premium_requests_used, usdExchangeRate.rate)
       : null
-  ), [usage?.premium_requests_used, usdToEurRate]);
+  ), [usage?.premium_requests_used, usdExchangeRate]);
 
   const claudePrimary = useMemo(() => primaryWindow(claudeUsage), [claudeUsage]);
 
@@ -330,8 +376,8 @@ function App() {
     const pct = Math.max(0, Math.min(100, activePercentage));
     const filledBlocks = Math.round((pct / 100) * totalBlocks);
     const progressBar = '▰'.repeat(filledBlocks) + '▱'.repeat(totalBlocks - filledBlocks);
-    setText(hasActiveData ? ` ${progressBar} ${activePercentage}%` : ' —');
-  }, [activePercentage, hasActiveData, setText]);
+    setText(hasActiveData ? ` ${progressBar} ${activePercentage}%` : ' —', language);
+  }, [activePercentage, hasActiveData, language, setText]);
 
   useEffect(() => {
     localStorage.setItem('refreshInterval', String(refreshInterval));
@@ -344,7 +390,9 @@ function App() {
             premiumUsed: usage.premium_requests_used,
             premiumLimit: usage.premium_requests_limit,
             premiumRemaining: Math.max(0, usage.premium_requests_limit - usage.premium_requests_used),
-            premiumEuroEquivalent: premiumEuroEquivalent === null ? null : formatEuroAmount(premiumEuroEquivalent),
+            currencyEquivalent: premiumCurrencyEquivalent === null
+              ? null
+              : formatCurrencyAmount(premiumCurrencyEquivalent, currency, language),
             plan: copilotPlan,
             organizations: usage.organizations,
           }
@@ -352,15 +400,16 @@ function App() {
       claude: claudeUsage
         ? {
             windows: claudeUsage.windows.map((window) => ({
-              label: window.label,
+              label: translateClaudeWindowLabel(language, window.key, window.label),
               percent: window.percent,
-              resetsAt: formatResetsAt(window.resets_at),
+              resetsAt: formatResetsAt(window.resets_at, localeForLanguage(language), t('resetNow')),
             })),
           }
         : null,
       claudeAvailable: claudeStatus?.available ?? false,
+      language,
     }, handleRefresh);
-  }, [usage, copilotPlan, premiumEuroEquivalent, claudeUsage, claudeStatus?.available, updateMenu, handleRefresh]);
+  }, [usage, copilotPlan, premiumCurrencyEquivalent, currency, language, claudeUsage, claudeStatus?.available, updateMenu, handleRefresh]);
 
   const sourcePicker = (
     <div className="source-picker">
@@ -380,11 +429,15 @@ function App() {
   const refreshControl = (
     <div className="refresh-control">
       <label>
-        Auto-refresh:{' '}
-        <select value={refreshInterval} onChange={(e) => setRefreshInterval(Number(e.target.value))}>
+        {t('autoRefresh')}
+        <select
+          aria-label={t('autoRefresh')}
+          value={refreshInterval}
+          onChange={(event) => setRefreshInterval(Number(event.target.value))}
+        >
           {REFRESH_OPTIONS.map((minutes) => (
             <option key={minutes} value={minutes}>
-              {minutes === 1 ? '1 min' : `${minutes} mins`}
+              {minutes} {t('minuteAbbreviation')}
             </option>
           ))}
         </select>
@@ -396,26 +449,23 @@ function App() {
   if (source === 'claude') {
     return (
       <div className="container">
-        <h1>Claude Usage</h1>
+        <h1>{t('claudeUsage')}</h1>
         {sourcePicker}
 
         {claudeStatus && !claudeStatus.available && (
           <div className="token-setup">
-            <p>
-              No Claude Code login was found on this Mac. Sign in with the Claude Code CLI
-              (<code>claude</code> in a terminal, then <code>/login</code>) and refresh.
-            </p>
+            <p>{t('noClaudeLogin')}</p>
             {claudeStatus?.reason && <div className="error">{claudeStatus.reason}</div>}
           </div>
         )}
 
         {claudeStatus?.available && claudeStatus.expired && !claudeError && (
           <div className="status">
-            The stored Claude login has expired. Run the Claude Code CLI once to refresh it.
+            {t('claudeLoginExpired')}
           </div>
         )}
 
-        {claudeLoading && <div className="status">Loading...</div>}
+        {claudeLoading && <div className="status">{t('loading')}</div>}
         {claudeError && <div className="error">{claudeError}</div>}
 
         {claudeUsage && (
@@ -424,10 +474,11 @@ function App() {
               {claudeUsage.windows.map((window) => (
                 <ProgressBar
                   key={window.key}
-                  label={window.label}
+                  label={translateClaudeWindowLabel(language, window.key, window.label)}
                   percent={window.percent}
                   className="claude-window"
                   variant="claude"
+                  language={language}
                 />
               ))}
             </div>
@@ -436,7 +487,7 @@ function App() {
 
             <div className="billing-info">
               {claudePrimary?.resets_at && (
-                <p>{claudePrimary.label} resets: {formatResetsAt(claudePrimary.resets_at)}</p>
+                <p>{t('resets')}: {formatResetsAt(claudePrimary.resets_at, localeForLanguage(language), t('resetNow'))}</p>
               )}
             </div>
           </>
@@ -444,7 +495,7 @@ function App() {
 
         <div className="actions">
           <button onClick={handleRefresh} disabled={claudeLoading} className="btn-primary">
-            Refresh
+            {t('refresh')}
           </button>
         </div>
       </div>
@@ -457,28 +508,28 @@ function App() {
         <h1>GCT</h1>
         {sourcePicker}
         <div className="token-setup">
-          <p>Enter your GitHub Personal Access Token or use the GitHub login</p>
+          <p>{t('enterGithubToken')}</p>
 
           <button
             onClick={handleStartAuth}
             disabled={authLoading || authState !== null}
             className="btn-github"
           >
-            {authLoading ? 'Starting...' : '🔑 Login with GitHub'}
+            {authLoading ? t('starting') : `🔑 ${t('loginWithGithub')}`}
           </button>
 
           {authState && (
             <div className="auth-code-section">
-              <p>Enter this code at <a href={authState.verificationUri} target="_blank" rel="noopener noreferrer">{authState.verificationUri}</a>:</p>
+              <p>{t('enterCodeAt')} <a href={authState.verificationUri} target="_blank" rel="noopener noreferrer">{authState.verificationUri}</a>:</p>
               <div className="user-code">{authState.userCode}</div>
-              <p className="auth-status">Waiting for authorization...</p>
+              <p className="auth-status">{t('waitingForAuthorization')}</p>
             </div>
           )}
 
           {
             userCode && !authState && (
               <div className="auth-code-section">
-                <p>If you haven't authorized yet, go to <a href="https://github.com/login/device" target="_blank" rel="noopener noreferrer">https://github.com/login/device</a> and enter the code:</p>
+                <p>{t('authorizeAt')} <a href="https://github.com/login/device" target="_blank" rel="noopener noreferrer">{t('deviceLogin')}</a> {t('authorizeAndEnterCode')}</p>
                 <div className="user-code">{userCode}</div>
               </div>
             )
@@ -487,10 +538,11 @@ function App() {
           {authError && <div className="error">{authError}</div>}
 
           <div className="divider">
-            <span>or enter token manually</span>
+            <span>{t('orEnterToken')}</span>
           </div>
 
           <input
+            aria-label={t('githubToken')}
             type="password"
             value={token}
             onChange={(e) => setToken(e.target.value)}
@@ -498,10 +550,10 @@ function App() {
             className="token-input"
           />
           <button onClick={() => setToken('')} className="btn-secondary">
-            Clear
+            {t('clear')}
           </button>
           <button onClick={handleSaveToken} className="btn-primary">
-            Save Token
+            {t('saveToken')}
           </button>
         </div>
       </div>
@@ -513,20 +565,22 @@ function App() {
       <h1>GCT</h1>
       {sourcePicker}
 
-      {loading && <div className="status">Loading...</div>}
+      {loading && <div className="status">{t('loading')}</div>}
       {error && <div className="error">{error}</div>}
 
       {usage && (
         <>
           <div className="usage-section">
             <ProgressBar
-              label="AI Credits"
+              label={t('aiCredits')}
               percent={premiumPercentage}
               used={usage.premium_requests_used}
               limit={usage.premium_requests_limit}
               variant="premium"
-              euroEquivalent={premiumEuroEquivalent}
-              euroRateDate={usdToEurRate?.date}
+              currencyEquivalent={premiumCurrencyEquivalent}
+              currency={currency}
+              currencyRateDate={usdExchangeRate?.date}
+              language={language}
             />
           </div>
 
@@ -535,21 +589,21 @@ function App() {
           <div className="billing-info">
             {copilotPlan && (
               <p>
-                License: <strong>{copilotPlan}</strong>
+                {t('license')}: <strong>{copilotPlan}</strong>
                 {usage.organizations.length > 0 && ` (${usage.organizations.join(', ')})`}
               </p>
             )}
-            <p>Billing: {new Date(usage.billing_cycle_end).toLocaleDateString()}</p>
+            <p>{t('billing')}: {new Date(usage.billing_cycle_end).toLocaleDateString(localeForLanguage(language))}</p>
           </div>
         </>
       )}
 
       <div className="actions">
         <button onClick={handleRefresh} disabled={loading} className="btn-primary">
-          Refresh
+            {t('refresh')}
         </button>
         <button onClick={() => { localStorage.removeItem('github_token'); setHasToken(false); setUsage(null); }} className="btn-secondary">
-          Change Token
+          {t('changeToken')}
         </button>
       </div>
     </div>
@@ -599,7 +653,7 @@ function App() {
       setAlwaysOnTop(nextValue);
     } catch (error) {
       console.error('Failed to toggle always-on-top:', error);
-      setPinError('Pin failed');
+      setPinError(t('pinFailed'));
     } finally {
       setPinning(false);
     }
@@ -630,13 +684,16 @@ function App() {
 
   return (
     <main className="widget-shell">
-      <div className="usage-pill" role="group" aria-label="Usage widget" onMouseDown={handlePillDrag}>
+      <div className="usage-pill" role="group" aria-label={t('usageWidget')} onMouseDown={handlePillDrag}>
         <button
           type="button"
           className="pill-main"
-          aria-label={`${USAGE_SOURCE_LABELS[source]} usage ${hasActiveData ? `${Math.round(activePercentage)} percent` : 'unavailable'}. Click for details.`}
+          aria-label={translate(language, 'pillAriaLabel', {
+            source: USAGE_SOURCE_LABELS[source],
+            percentage: hasActiveData ? `${Math.round(activePercentage)} ${t('percentWord')}` : t('usageUnavailable'),
+          })}
           aria-expanded={expanded}
-          title="Click for details; hover for options; drag anywhere on the pill to move and resize from the edges."
+          title={t('clickForDetails')}
           onClick={handleToggleDetails}
         >
           <img className="pill-icon" src="/copilot-mark.png" alt="" draggable="false" />
@@ -652,14 +709,14 @@ function App() {
             {hasActiveData ? `${Math.round(activePercentage)}%` : '—'}
           </span>
         </button>
-        <div className="pill-controls" role="toolbar" aria-label="Widget options">
+        <div className="pill-controls" role="toolbar" aria-label={t('widgetOptions')}>
           <button
             type="button"
             className={`widget-control widget-control-pin${alwaysOnTop ? ' is-active' : ''}`}
-            aria-label={pinError ?? (alwaysOnTop ? 'Unpin from top' : 'Pin on top')}
+            aria-label={pinError ?? (alwaysOnTop ? t('unpinFromTop') : t('pinOnTop'))}
             aria-pressed={alwaysOnTop}
             disabled={pinning}
-            title={pinError ?? (alwaysOnTop ? 'Stop keeping the widget on top' : 'Keep the widget on top')}
+            title={pinError ?? (alwaysOnTop ? t('keepingOnTop') : t('keepOnTop'))}
             onClick={() => void handleToggleAlwaysOnTop()}
           >
             <svg className="widget-control-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -667,48 +724,72 @@ function App() {
               <path d="M12 14v7" />
             </svg>
             <span className="widget-control-label">
-              {pinning ? 'Pinning' : pinError ?? (alwaysOnTop ? 'Pinned' : 'Pin on top')}
+              {pinning ? t('pinning') : pinError ?? (alwaysOnTop ? t('pinned') : t('pinOnTop'))}
             </span>
           </button>
           <button
             type="button"
             className={`widget-control${expanded ? ' is-active' : ''}`}
-            aria-label={expanded ? 'Close usage details' : 'Open usage details'}
+            aria-label={expanded ? t('closeDetails') : t('openDetails')}
             aria-pressed={expanded}
-            title={expanded ? 'Close details' : 'Open usage details'}
+            title={expanded ? t('closeDetails') : t('openDetails')}
             onClick={handleToggleDetails}
           >
             <svg className="widget-control-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 5v15h16" />
               <path d="M8 16v-3M13 16V8M18 16v-6" />
             </svg>
-            <span className="widget-control-label">{expanded ? 'Close' : 'Details'}</span>
+            <span className="widget-control-label">{expanded ? t('close') : t('details')}</span>
           </button>
           <button
             type="button"
             className="widget-control widget-control-hide"
-            aria-label="Hide widget to system tray"
-            title="Hide widget to system tray"
+            aria-label={t('hideToTray')}
+            title={t('hideToTray')}
             onClick={() => void handleHideWidget()}
           >
             <svg className="widget-control-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
-            <span className="widget-control-label">Hide</span>
+            <span className="widget-control-label">{t('hideWidget')}</span>
           </button>
         </div>
       </div>
 
       {expanded && (
-        <section className="details-panel" aria-label="Usage details">
-          <button
-            type="button"
-            className="details-close"
-            aria-label="Close details"
-            onClick={() => setExpanded(false)}
-          >
-            ×
-          </button>
+        <section className="details-panel" aria-label={t('usageDetails')}>
+          <div className="details-toolbar">
+            <button
+              type="button"
+              className="details-settings-toggle"
+              aria-label={settingsOpen ? t('closeSettings') : t('openSettings')}
+              aria-expanded={settingsOpen}
+              aria-controls="gct-settings"
+              onClick={() => setSettingsOpen((open) => !open)}
+            >
+              <svg className="details-settings-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
+                <path d="m19.4 13.5 1.1.9-1.4 2.4-1.4-.5a7.9 7.9 0 0 1-1.5.9l-.3 1.5h-2.8l-.3-1.5a7.9 7.9 0 0 1-1.5-.9l-1.4.5-1.4-2.4 1.1-.9a7.1 7.1 0 0 1 0-1.8l-1.1-.9 1.4-2.4 1.4.5a7.9 7.9 0 0 1 1.5-.9l.3-1.5h2.8l.3 1.5a7.9 7.9 0 0 1 1.5.9l1.4-.5 1.4 2.4-1.1.9a7.1 7.1 0 0 1 0 1.8Z" />
+              </svg>
+              <span>{t('settings')}</span>
+            </button>
+            <button
+              type="button"
+              className="details-close"
+              aria-label={t('closeDetails')}
+              title={t('closeDetails')}
+              onClick={() => setExpanded(false)}
+            >
+              ×
+            </button>
+          </div>
+          <SettingsPanel
+            language={language}
+            currency={currency}
+            isOpen={settingsOpen}
+            onLanguageChange={handleLanguageChange}
+            onCurrencyChange={handleCurrencyChange}
+          />
           {dashboard}
         </section>
       )}

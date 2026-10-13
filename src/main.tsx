@@ -5,20 +5,22 @@ import { TrayProvider } from './contexts/TrayContext';
 import { Menu } from "@tauri-apps/api/menu";
 import { TrayIcon } from "@tauri-apps/api/tray";
 import { invoke } from "@tauri-apps/api/core";
+import { getStoredLanguage, translate } from './i18n';
 
 (async () => {
+  const language = getStoredLanguage();
   const menu = await Menu.new({
     items: [
       {
         id: 'show',
-        text: 'Show GCT',
+        text: translate(language, 'showWidget'),
         action: () => {
           invoke('show_window');
         },
       },
       {
         id: 'quit',
-        text: 'Quit',
+        text: translate(language, 'quit'),
         action: () => {
           invoke('close_app');
         },

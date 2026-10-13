@@ -116,7 +116,7 @@ h2 {
   text-align: center;
 }
 
-.usage-euro-equivalent {
+.usage-currency-equivalent {
   margin-top: 3px;
   color: #786b5d;
   font-size: 12px;
@@ -790,26 +790,122 @@ body {
   color: var(--details-ink);
 }
 
-.details-close {
+.details-toolbar {
   position: sticky;
-  z-index: 2;
-  top: 8px;
-  float: right;
-  width: 28px;
-  height: 28px;
-  margin: 8px 8px -36px 0;
-  padding: 0;
+  z-index: 3;
+  top: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px 4px;
+  background: var(--details-surface);
+}
+
+.details-settings-toggle,
+.details-close {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
   border: 1px solid #d7c88f;
-  border-radius: 50%;
+  border-radius: 999px;
   background: #feea98;
   color: #17180f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.details-settings-toggle:hover,
+.details-close:hover {
+  transform: none;
+  background: #f4d96f;
+}
+
+.details-settings-toggle:focus-visible,
+.details-close:focus-visible,
+.settings-field select:focus-visible {
+  outline: 2px solid #17180f;
+  outline-offset: 2px;
+}
+
+.details-settings-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.settings-panel {
+  margin: 8px clamp(16px, 5cqw, 32px) 0;
+  padding: 18px;
+  border: 1px solid var(--details-border);
+  border-radius: 14px;
+  background: #fffdf5;
+  color: var(--details-ink);
+}
+
+.settings-panel[hidden] {
+  display: none;
+}
+
+.settings-panel h2 {
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  font-size: 16px;
+}
+
+.settings-description {
+  margin: 0 0 16px;
+  color: var(--details-muted);
+  font-size: 13px;
+}
+
+.settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settings-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--details-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-field select {
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 10px;
+  border: 1px solid #cfc18f;
+  border-radius: 8px;
+  background: #fffdf5;
+  color: var(--details-ink);
+  font: inherit;
+  font-weight: 400;
+}
+
+.details-close {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  border-radius: 50%;
   font-size: 20px;
   line-height: 1;
 }
 
-.details-close:hover {
-  transform: none;
-  background: #f4d96f;
+@media (max-width: 520px) {
+  .settings-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 .details-close:focus-visible {

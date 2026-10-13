@@ -86,15 +86,14 @@ export function primaryWindow(usage: ClaudeUsage | null): ClaudeUsageWindow | nu
   );
 }
 
-export function formatResetsAt(resetsAt: string | null): string | null {
+export function formatResetsAt(resetsAt: string | null, locale?: string, nowLabel = 'now'): string | null {
   if (!resetsAt) return null;
 
   const reset = new Date(resetsAt);
   const hoursAway = (reset.getTime() - Date.now()) / (1000 * 60 * 60);
-  if (hoursAway < 0) return "now";
+  if (hoursAway < 0) return nowLabel;
 
-  // Within a day the clock time is what matters; beyond that, the day is.
   return hoursAway < 24
-    ? reset.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : reset.toLocaleDateString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+    ? reset.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
+    : reset.toLocaleDateString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit" });
 }
