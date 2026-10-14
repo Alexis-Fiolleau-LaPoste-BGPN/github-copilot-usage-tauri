@@ -1,0 +1,4 @@
+# Docs
+
+- [Overview](/docs): What GCT is and how to install it
+- [Troubleshooting](/docs/troubleshooting): Common issues and fixes
