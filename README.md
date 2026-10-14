@@ -6,7 +6,7 @@
 
 A lightweight Windows widget for GitHub Copilot AI-credit and Claude Code usage.
 
-[Download the latest Windows release](https://github.com/Potowai/github-copilot-tracker/releases/latest) · [Showcase](https://potowai.github.io/github-copilot-tracker/) · [Source](https://github.com/Potowai/github-copilot-tracker)
+[Download the latest Windows release](https://github.com/Potowai/github-copilot-tracker/releases/latest) · [Docs & showcase](https://potowai.github.io/github-copilot-tracker/) · [Source](https://github.com/Potowai/github-copilot-tracker)
 
 [![Latest release](https://img.shields.io/github/v/release/Potowai/github-copilot-tracker?style=for-the-badge)](https://github.com/Potowai/github-copilot-tracker/releases/latest)
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
@@ -62,9 +62,19 @@ From PowerShell at the repository root, run:
 
 The build produces `src-tauri\target\x86_64-pc-windows-gnu\release\gct.exe` and `WebView2Loader.dll`. Keep both files together when running or redistributing a local build.
 
+## Documentation site
+
+The published docs and showcase at [potowai.github.io/github-copilot-tracker](https://potowai.github.io/github-copilot-tracker/) are a static [Fumadocs](https://fumadocs.dev) + Next.js app under `docs-site/`, deployed by `.github/workflows/docs.yml` on pushes to `main` that touch `docs-site/`. To preview locally:
+
+```powershell
+cd docs-site
+npm install
+npm run dev
+```
+
 ## Links
 
-- [Showcase page](https://potowai.github.io/github-copilot-tracker/)
+- [Docs & showcase](https://potowai.github.io/github-copilot-tracker/)
 - [Releases](https://github.com/Potowai/github-copilot-tracker/releases)
 - [Report a problem](https://github.com/Potowai/github-copilot-tracker/issues)
 
