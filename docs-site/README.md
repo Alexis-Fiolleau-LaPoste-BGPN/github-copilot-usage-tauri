@@ -20,4 +20,4 @@ $env:PAGES_BASE_PATH = "/github-copilot-tracker"
 npm run build
 ```
 
-The repository's Pages source must be set to **GitHub Actions** for `.github/workflows/docs.yml` to deploy.
+The repository currently serves GitHub Pages from `main:/docs`. `.github/workflows/docs.yml` builds the Fumadocs export and syncs it to `docs/`, so no Pages settings change is needed. GitHub Actions commits the generated static files after content changes.
